@@ -31,7 +31,11 @@
 - **Intel Mac**：使用不含 `arm64` 的 Mac 包，或打开 `dist/mac/邻讯.app`。
 - **Windows x64**：`Setup` 文件为安装包，另一个 `.exe` 为免安装版本。`dist/win-unpacked/邻讯.exe` 为未压缩的完整应用（需保留整个文件夹）。
 
-应用尚未使用 Apple Developer ID / Windows 代码签名证书签名或公证。macOS 如阻止首次运行，可在系统「隐私与安全性」中核实来源后允许；Windows 可能显示 SmartScreen 提示。
+[下载安装包与 SHA-256 校验文件](https://github.com/wonderful200x-ui/linx-lan/releases/latest)。macOS 构建使用完整的 ad-hoc 签名并强制验证资源封装，但尚未使用 Apple Developer ID 签名或苹果公证，首次打开仍可能被拦截。核实下载来源和校验值后，尝试打开一次，再到「系统设置 → 隐私与安全性 → 仍要打开」。Windows 可能显示 SmartScreen 提示。
+
+如果旧 Mac 安装包提示「已损坏」，请退出应用，将“应用程序”中的旧 `邻讯.app` 移至废纸篓，重新下载已修复的 DMG 并安装。此操作不删除用户资料目录。不要覆盖旧包、修改签名或全局关闭 Gatekeeper。[Apple 官方说明](https://support.apple.com/zh-cn/102445)。
+
+开发者构建时默认使用 `mac.identity: "-"`，并在签名后运行 `codesign --verify --deep --strict`，校验失败会终止打包。正式公证发行需提供自己的 Developer ID Application 证书和 Apple 公证凭据，并将 `mac.identity` 覆盖为该证书；ad-hoc 签名不提供开发者身份认证。
 
 在两台电脑上打开邻讯，连接同一个 Wi-Fi 或有线局域网。在左侧选择对方终端即可聊天。发送文件或文件夹后，对方在右侧点击「接收文件」。点击左下角设置可修改终端名称及接收位置。
 
