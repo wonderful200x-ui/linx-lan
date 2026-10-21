@@ -1,0 +1,62 @@
+{
+  "name": "linx-lan",
+  "version": "1.1.0",
+  "description": "邻讯：局域网聊天与大文件传输",
+  "main": "src/main.cjs",
+  "private": true,
+  "author": "Linx",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "check": "node scripts/check.cjs",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder",
+    "test:ui": "node scripts/ui-smoke.cjs",
+    "test:large": "node scripts/large-test.cjs",
+    "dist:android": "node scripts/build-android.cjs",
+    "test:android": "node scripts/test-android-interop.cjs",
+    "test:android:ui": "node scripts/test-android-ui.cjs"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "local.linx.desktop",
+    "productName": "邻讯",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "assets/icon.png",
+      "assets/Linx-android.apk"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "icon": "assets/icon.png"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  }
+}

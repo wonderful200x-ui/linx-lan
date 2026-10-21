@@ -1,0 +1,65 @@
+name: Build desktop apps
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    needs: android
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            command: npx electron-builder --mac --arm64 --x64
+          - os: windows-latest
+            command: npx electron-builder --win --x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: linx-android
+          path: assets
+      - run: mv assets/Linx-1.1.0-android.apk assets/Linx-android.apk
+        shell: bash
+      - run: npm run check
+      - run: npm test
+      - run: ${{ matrix.command }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linx-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci
+      - run: (yes || true) | sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: npm run dist:android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linx-android
+          path: dist/*.apk
+          if-no-files-found: error

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.DS_Store
+coverage/
+*.log
+android/.gradle/
+android/.tooling/
+android/local.properties
+android/**/build/
+android/test-output/
+*.jks
+*.keystore
+
+# Local credentials and editor/runtime caches
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.pem
+*.key
+.idea/
+.vscode/
+
+# Generated Android installer is built from source, never committed
+/assets/Linx-android.apk
