@@ -12,7 +12,7 @@ function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.
 fs.rmSync(out,{recursive:true,force:true});for(const dir of [out,classes,dex,generated])fs.mkdirSync(dir,{recursive:true});
 run(path.join(tools,'aapt2'),['compile','--dir',path.join(android,'app/src/main/res'),'-o',path.join(out,'resources.zip')]);
 const manifest=path.join(out,'AndroidManifest.xml');fs.writeFileSync(manifest,fs.readFileSync(path.join(android,'app/src/main/AndroidManifest.xml'),'utf8').replace('<manifest ', '<manifest package="local.linx.android" '));
-const unsigned=path.join(out,'unsigned.apk');run(path.join(tools,'aapt2'),['link','--auto-add-overlay','-o',unsigned,'--manifest',manifest,'-I',androidJar,'--java',generated,'-R',path.join(out,'resources.zip'),'--min-sdk-version','26','--target-sdk-version','35','--version-code','2','--version-name',require('../package.json').version]);
+const unsigned=path.join(out,'unsigned.apk');run(path.join(tools,'aapt2'),['link','--auto-add-overlay','-o',unsigned,'--manifest',manifest,'-I',androidJar,'--java',generated,'-R',path.join(out,'resources.zip'),'--min-sdk-version','26','--target-sdk-version','35','--version-code','3','--version-name',require('../package.json').version]);
 run(path.join(java,'bin/javac'),['-encoding','UTF-8','--release','8','-cp',androidJar,'-d',classes,...walk(path.join(android,'app/src/main/java')).filter(f=>f.endsWith('.java')),...walk(generated).filter(f=>f.endsWith('.java'))]);
 run(path.join(java,'bin/jar'),['cf',path.join(out,'classes.jar'),'-C',classes,'.']);
 run(path.join(tools,'d8'),['--min-api','26','--lib',androidJar,'--output',dex,path.join(out,'classes.jar')]);

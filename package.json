@@ -1,6 +1,6 @@
 {
   "name": "linx-lan",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "飞鼠：局域网聊天与文件传输",
   "main": "src/main.cjs",
   "private": true,

@@ -17,7 +17,7 @@ import local.linx.android.core.LanEngine;
 import org.json.*;
 
 public final class MainActivity extends Activity {
-  private static final int BLUE = 0xff0099e6, INK = 0xff25282d, MUTED = 0xff7c818a, BG = 0xfff5f5f5;
+  private static final int BLUE = 0xff0099e6, INK = 0xff25282d, MUTED = 0xff68727d, BG = 0xfff5f5f5;
   private static final int PICK = 11, TREE = 12, SAVE = 13;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private LinearLayout body, root, nav, composer;
@@ -160,7 +160,7 @@ public final class MainActivity extends Activity {
         return super.onTextContextMenuItem(id);
       }
     };
-    message.setTextSize(14);
+    message.setTextSize(16);
     message.setSingleLine(false);
     message.setMaxLines(3);
     message.setHint("输入消息…");
@@ -204,7 +204,7 @@ public final class MainActivity extends Activity {
                 renderNav();
                 render();
               });
-      nav.addView(b, new LinearLayout.LayoutParams(0, dp(44), 1));
+      nav.addView(b, new LinearLayout.LayoutParams(0, dp(52), 1));
     }
   }
 
@@ -332,11 +332,11 @@ public final class MainActivity extends Activity {
     space(card, 14);
     LinearLayout buttons = row();
     buttons.addView(
-        button("图片 / 视频", false, () -> pick(true)), new LinearLayout.LayoutParams(0, dp(46), 1));
+        button("图片视频", false, () -> pick(true)), new LinearLayout.LayoutParams(0, dp(52), 1));
     buttons.addView(
-        button("文件", false, () -> pick(false)), new LinearLayout.LayoutParams(0, dp(46), 1));
+        button("文件", false, () -> pick(false)), new LinearLayout.LayoutParams(0, dp(52), 1));
     buttons.addView(
-        button("文件夹", false, this::pickTree), new LinearLayout.LayoutParams(0, dp(46), 1));
+        button("文件夹", false, this::pickTree), new LinearLayout.LayoutParams(0, dp(52), 1));
     card.addView(buttons);
     space(card, 12);
     if (s.status.startsWith("导入失败")) card.addView(text(s.status, 12, 0xffba5b58, false));
@@ -390,7 +390,7 @@ public final class MainActivity extends Activity {
                             }));
               });
       send.setEnabled(!s.importing);
-      actions.addView(send, new LinearLayout.LayoutParams(0, dp(46), 1));
+      actions.addView(send, new LinearLayout.LayoutParams(0, dp(52), 1));
       card.addView(actions);
     }
     if (!s.sharedText.isEmpty()) {
@@ -743,7 +743,7 @@ public final class MainActivity extends Activity {
           text(
               "传输需要保持局域网服务运行。可切回微信，后台通知中可停止服务。部分手机需允许后台运行。\n\n"
                   + "Android 15+ 对数据同步前台服务有后台时限；服务停止后重新打开应用即可。\n\n"
-                  + "版本 1.2.0 · 仅用于可信局域网",
+                  + "版本 1.2.1 · 仅用于可信局域网",
               12,
               MUTED,
               false);
@@ -811,9 +811,10 @@ public final class MainActivity extends Activity {
   private TextView text(String value, int size, int color, boolean bold) {
     TextView v = new TextView(this);
     v.setText(value);
-    v.setTextSize(size);
+    // SP follows Android system font scaling; keep secondary text at least 13sp.
+    v.setTextSize(size <= 11 ? 13 : size <= 13 ? 14 : size == 14 ? 16 : size);
     v.setTextColor(color);
-    v.setLineSpacing(dp(3), 1);
+    v.setLineSpacing(dp(3), 1.08f);
     if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     return v;
   }
@@ -838,14 +839,14 @@ public final class MainActivity extends Activity {
   private Button button(String value, boolean primary, Runnable action) {
     Button v = new Button(this);
     v.setText(value);
-    v.setTextSize(12);
+    v.setTextSize(15);
     v.setAllCaps(false);
     v.setTextColor(primary ? Color.WHITE : BLUE);
     v.setMinHeight(0);
     v.setMinimumHeight(0);
     v.setMinWidth(0);
     v.setMinimumWidth(0);
-    v.setPadding(dp(12), dp(8), dp(12), dp(8));
+    v.setPadding(dp(8), dp(8), dp(8), dp(8));
     v.setBackground(shape(primary ? BLUE : 0x000099e6, 4));
     v.setOnClickListener(w -> action.run());
     return v;
@@ -853,7 +854,7 @@ public final class MainActivity extends Activity {
 
   private EditText input(String hint) {
     EditText edit = new EditText(this);
-    edit.setTextSize(14);
+    edit.setTextSize(16);
     edit.setSingleLine(true);
     edit.setHint(hint);
     return edit;
