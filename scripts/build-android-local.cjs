@@ -12,13 +12,13 @@ function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.
 fs.rmSync(out,{recursive:true,force:true});for(const dir of [out,classes,dex,generated])fs.mkdirSync(dir,{recursive:true});
 run(path.join(tools,'aapt2'),['compile','--dir',path.join(android,'app/src/main/res'),'-o',path.join(out,'resources.zip')]);
 const manifest=path.join(out,'AndroidManifest.xml');fs.writeFileSync(manifest,fs.readFileSync(path.join(android,'app/src/main/AndroidManifest.xml'),'utf8').replace('<manifest ', '<manifest package="local.linx.android" '));
-const unsigned=path.join(out,'unsigned.apk');run(path.join(tools,'aapt2'),['link','--auto-add-overlay','-o',unsigned,'--manifest',manifest,'-I',androidJar,'--java',generated,'-R',path.join(out,'resources.zip'),'--min-sdk-version','26','--target-sdk-version','35','--version-code','1','--version-name','1.1.0']);
+const unsigned=path.join(out,'unsigned.apk');run(path.join(tools,'aapt2'),['link','--auto-add-overlay','-o',unsigned,'--manifest',manifest,'-I',androidJar,'--java',generated,'-R',path.join(out,'resources.zip'),'--min-sdk-version','26','--target-sdk-version','35','--version-code','2','--version-name',require('../package.json').version]);
 run(path.join(java,'bin/javac'),['-encoding','UTF-8','--release','8','-cp',androidJar,'-d',classes,...walk(path.join(android,'app/src/main/java')).filter(f=>f.endsWith('.java')),...walk(generated).filter(f=>f.endsWith('.java'))]);
 run(path.join(java,'bin/jar'),['cf',path.join(out,'classes.jar'),'-C',classes,'.']);
 run(path.join(tools,'d8'),['--min-api','26','--lib',androidJar,'--output',dex,path.join(out,'classes.jar')]);
 run('/usr/bin/zip',['-j',unsigned,...walk(dex).filter(f=>f.endsWith('.dex'))]);
 const aligned=path.join(out,'aligned.apk');run(path.join(tools,'zipalign'),['-f','4',unsigned,aligned]);
 const key=path.join(tooling,'linx-development.jks');if(!fs.existsSync(key))run(path.join(java,'bin/keytool'),['-genkeypair','-keystore',key,'-storepass','android','-keypass','android','-alias','linx-development','-keyalg','RSA','-keysize','2048','-validity','10000','-dname','CN=Linx Development, O=Linx, C=CN']);
-fs.mkdirSync(path.join(root,'dist'),{recursive:true});const apk=path.join(root,'dist/Linx-1.1.0-android.apk');
+fs.mkdirSync(path.join(root,'dist'),{recursive:true});const apk=path.join(root,'dist/FlyingMouse-'+require('../package.json').version+'-android.apk');
 run(path.join(tools,'apksigner'),['sign','--ks',key,'--ks-pass','pass:android','--key-pass','pass:android','--out',apk,aligned]);
 run(path.join(tools,'apksigner'),['verify','--verbose',apk]);console.log('APK:',apk);

@@ -85,7 +85,7 @@ public final class TransferService extends Service {
             this, 1, stop, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     return new Notification.Builder(this, CHANNEL)
         .setSmallIcon(R.drawable.ic_linx)
-        .setContentTitle("邻讯 · 局域网传输")
+        .setContentTitle("飞鼠 · 局域网传输")
         .setContentText(text)
         .setContentIntent(content)
         .setOngoing(true)
@@ -102,6 +102,7 @@ public final class TransferService extends Service {
     if (intent != null && IMPORT.equals(intent.getAction())) {
       ArrayList<Uri> uris = intent.getParcelableArrayListExtra("uris");
       boolean tree = intent.getBooleanExtra("tree", false);
+      android.view.inputmethod.InputContentInfo inputContent = intent.getParcelableExtra("inputContent");
       String text = intent.getStringExtra("text");
       if (text != null && !text.trim().isEmpty()) {
         sharedText = text;
@@ -130,6 +131,7 @@ public final class TransferService extends Service {
               } catch (Exception e) {
                 status = "导入失败：" + e.getMessage();
               } finally {
+                if (inputContent != null) inputContent.releasePermission();
                 importing = false;
                 revision.incrementAndGet();
               }
@@ -180,7 +182,7 @@ public final class TransferService extends Service {
 
   @Override
   public void onTimeout(int startId, int fgsType) {
-    status = "系统已达到后台传输时限，请重新打开邻讯";
+    status = "系统已达到后台传输时限，请重新打开飞鼠";
     stopSelf();
   }
 

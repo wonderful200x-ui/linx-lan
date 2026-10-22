@@ -383,7 +383,7 @@ public final class LanEngine implements Closeable {
       if (!PROTOCOL.equals(h.optString("protocol"))
           || h.optString("id").length() > 100
           || h.optString("id").isEmpty()
-          || h.optString("token").length() < 16) throw new IOException("不是邻讯客户端");
+          || h.optString("token").length() < 16) throw new IOException("不是飞鼠客户端");
       if (id.equals(h.getString("id"))) throw new IOException("这是当前手机");
       Peer p = new Peer();
       p.id = h.getString("id");
@@ -921,7 +921,7 @@ public final class LanEngine implements Closeable {
         return;
       }
       if (received.getUsableSpace() < t.total) throw new IOException("手机可用空间不足");
-      t.receiveDir = Files.createTempDirectory(received.toPath(), "邻讯-").toFile();
+      t.receiveDir = Files.createTempDirectory(received.toPath(), "飞鼠-").toFile();
       for (Entry e : t.entries)
         if (e.type.equals("directory")) {
           File dir = new File(t.receiveDir, e.path);

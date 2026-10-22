@@ -16,8 +16,8 @@ class CDP {
   await fs.writeFile(path.join(profile, 'state.json'), JSON.stringify({ config: { name: '我的 MacBook', downloadDir: path.join(root, 'received') } }));
   const peer = await new LanService({ dataDir: path.join(root, 'peer'), downloadDir: path.join(root, 'peer-received') }).start(); await peer.setConfig({ name: '设计工作站' });
   const portFinder = net.createServer(); await new Promise(r => portFinder.listen(0, '127.0.0.1', r)); const debugPort = portFinder.address().port; await new Promise(r => portFinder.close(r));
-  const env = { ...process.env, LINX_PROFILE: profile }; delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(process.env.LINX_BINARY || require('electron'), [...(process.env.LINX_BINARY ? [] : ['.']), '--remote-debugging-port=' + debugPort], { cwd: path.join(__dirname, '..'), env, stdio: ['ignore', 'pipe', 'pipe'] }); let log = '';
+  const env = { ...process.env, LINX_PROFILE: profile, LINX_TEST_IMAGE: path.join(__dirname, '../assets/icon.png'), LINX_TEST_PNG: path.join(root, 'clipboard.png') }; delete env.ELECTRON_RUN_AS_NODE;
+  const child = spawn(process.env.LINX_BINARY || require('electron'), [...(process.env.LINX_BINARY ? [] : [path.join(__dirname, 'ui-test-launch.cjs')]), '--remote-debugging-port=' + debugPort], { cwd: path.join(__dirname, '..'), env, stdio: ['ignore', 'pipe', 'pipe'] }); let log = '';
   child.stdout.on('data', b => { log += b; }); child.stderr.on('data', b => { log += b; });
   let cdp;
   try {
@@ -26,8 +26,9 @@ class CDP {
     const consoleErrors = [];
     cdp.ws.addEventListener('message', event => { const m = JSON.parse(event.data); if (m.method === 'Runtime.exceptionThrown') consoleErrors.push(m.params.exceptionDetails.text); });
     await wait(() => cdp.eval('Boolean(window.linx && document.getElementById("selfName").textContent === "我的 MacBook")'));
-    await fs.mkdir(path.join(__dirname, '../docs/screenshots'), { recursive: true });
-    const screenshot = async name => { await delay(600); const result = await cdp.call('Page.captureScreenshot', { format: 'png' }); await fs.writeFile(path.join(__dirname, '../docs/screenshots', name + '.png'), Buffer.from(result.data, 'base64')); };
+    const screenshotDir = process.env.LINX_SCREENSHOT_DIR || path.join(__dirname, '../docs/screenshots');
+    await fs.mkdir(screenshotDir, { recursive: true });
+    const screenshot = async name => { await delay(600); await cdp.eval(`state = { ...state, peers: state.peers.filter(p => p.id === ${JSON.stringify(peer.config.id)}) }; render();`); const result = await cdp.call('Page.captureScreenshot', { format: 'png' }); await fs.writeFile(path.join(screenshotDir, name + '.png'), Buffer.from(result.data, 'base64')); };
     await wait(async () => (await cdp.eval('window.linx.snapshot()')).peers.some(p => p.id === peer.config.id && p.online));
     console.log('✓ UDP 自动发现真实桌面客户端与第二终端');
     await screenshot('welcome');
@@ -44,19 +45,40 @@ class CDP {
     await wait(() => peer.messages.some(m => m.text.includes('项目文件')));
     const own = await cdp.eval('window.linx.snapshot()'); await peer.connect('127.0.0.1', own.port);
     await peer.sendMessage(own.config.id, '收到，整个设计文件夹一起发给你，空目录也会保留。');
-    const folder = path.join(root, '品牌设计方案'); await fs.mkdir(path.join(folder, '交付素材'), { recursive: true }); await fs.writeFile(path.join(folder, '设计说明.txt'), '邻讯真实客户端端到端测试'); await fs.writeFile(path.join(folder, '交付素材', '封面.bin'), Buffer.alloc(8 * 1024 * 1024, 37));
+    const folder = path.join(root, '品牌设计方案'); await fs.mkdir(path.join(folder, '交付素材'), { recursive: true }); await fs.writeFile(path.join(folder, '设计说明.txt'), '飞鼠真实客户端端到端测试'); await fs.writeFile(path.join(folder, '交付素材', '封面.bin'), Buffer.alloc(8 * 1024 * 1024, 37));
     const sentId = await peer.sendFiles(own.config.id, [folder]);
-    await wait(() => cdp.eval('Boolean(document.querySelector("#activeTransfers [data-action=accept]"))'));
-    await cdp.eval('document.querySelector("#activeTransfers [data-action=accept]").click()');
+    await wait(() => cdp.eval('Boolean(document.querySelector("#timeline [data-action=accept]"))'));
+    await cdp.eval('document.querySelector("#timeline [data-action=accept]").click()');
     await wait(() => peer.transfers.get(sentId).status === 'completed');
     const received = (await cdp.eval('window.linx.snapshot()')).transfers.find(t => t.status === 'completed');
-    assert.equal(await fs.readFile(path.join(received.receiveDir, '品牌设计方案', '设计说明.txt'), 'utf8'), '邻讯真实客户端端到端测试');
+    assert.equal(await fs.readFile(path.join(received.receiveDir, '品牌设计方案', '设计说明.txt'), 'utf8'), '飞鼠真实客户端端到端测试');
     const out = path.join(root, '会议记录.txt'); await fs.writeFile(out, 'UI outgoing file');
     await cdp.eval(`window.linx.dropSend(${JSON.stringify(peer.config.id)}, ${JSON.stringify([out])})`);
     await wait(() => [...peer.transfers.values()].find(t => t.direction === 'incoming' && t.status === 'pending'));
     const inbound = [...peer.transfers.values()].find(t => t.direction === 'incoming' && t.status === 'pending'); await peer.accept(inbound.id, true);
     await wait(() => inbound.status === 'completed');
     assert.equal(await fs.readFile(path.join(inbound.receiveDir, '会议记录.txt'), 'utf8'), 'UI outgoing file');
+    if (!process.env.LINX_BINARY) {
+      await cdp.eval("document.getElementById('pasteImage').click()");
+      await wait(() => cdp.eval("document.querySelectorAll('.image-draft').length === 1"));
+      assert.equal(peer.snapshot().transfers.filter(t => t.direction === 'incoming').length, 1, '预览图片不应自动发送');
+      await cdp.eval("document.querySelector('[data-remove-image]').click()");
+      await wait(() => cdp.eval("document.querySelectorAll('.image-draft').length === 0"));
+      await cdp.eval("document.getElementById('messageInput').focus()");
+      await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'v', code: 'KeyV', modifiers: process.platform === 'darwin' ? 4 : 2, commands: ['Paste'] });
+      await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'v', code: 'KeyV' });
+      await wait(() => cdp.eval("document.querySelectorAll('.image-draft').length === 1"));
+      await screenshot('clipboard-preview');
+      await cdp.eval("document.getElementById('sendMessage').click()");
+      await wait(() => [...peer.transfers.values()].find(t => t.direction === 'incoming' && t.status === 'pending'));
+      const image = [...peer.transfers.values()].find(t => t.direction === 'incoming' && t.status === 'pending');
+      await peer.accept(image.id, true);
+      await wait(() => image.status === 'completed');
+      assert.deepEqual(await fs.readFile(path.join(image.receiveDir, image.name)), await fs.readFile(path.join(root, 'clipboard.png')));
+      await wait(() => cdp.eval("document.querySelectorAll('#timeline .sent-image').length > 0"));
+      assert.equal(await cdp.eval("document.querySelectorAll('.image-draft').length"), 0);
+      console.log('✓ 系统剪贴板图片：按钮预览、移除、原生粘贴快捷键、确认发送、PNG 字节一致、聊天缩略图');
+    }
     await cdp.eval(`document.getElementById('settingsButton').click(); document.getElementById('deviceName').value='产品团队 · MacBook'; document.getElementById('settingsForm').requestSubmit();`);
     await wait(() => cdp.eval('document.getElementById("selfName").textContent === "产品团队 · MacBook"'));
     await peer.sendMessage(own.config.id, '文件夹传输完成，校验通过 ✓'); await delay(500);
@@ -66,5 +88,5 @@ class CDP {
     console.log('✓ Electron 真实界面：启动、手动连接、双向聊天、接收文件夹、发送文件、进度卡片、改名、传输记录均通过');
     console.log('✓ 截图保存在 docs/screenshots/');
   } catch (e) { console.error(log.slice(-6000)); console.error('Peer transfers:', JSON.stringify(peer.snapshot().transfers)); if (cdp) { console.error('App state:', JSON.stringify(await cdp.eval('window.linx.snapshot()').catch(() => ({})))); const shot = await cdp.call('Page.captureScreenshot', { format: 'png' }).catch(() => null); if (shot) await fs.writeFile(path.join(__dirname, '../docs/screenshots/error.png'), Buffer.from(shot.data, 'base64')); } throw e; }
-  finally { cdp?.ws.close(); child.kill('SIGTERM'); await delay(1000); await peer.stop(); await fs.rm(root, { recursive: true, force: true }); }
+  finally { if (cdp) await cdp.call('Page.close').catch(() => {}); await delay(600); cdp?.ws.close(); child.kill('SIGTERM'); await delay(400); await peer.stop(); await fs.rm(root, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

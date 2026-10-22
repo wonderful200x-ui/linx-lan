@@ -68,7 +68,7 @@ class LanService extends EventEmitter {
       try { const stat = await fsp.stat(this.options.androidApkPath); const hash = createHash('sha256'); for await (const chunk of fs.createReadStream(this.options.androidApkPath)) hash.update(chunk); this.androidInstaller = { size: stat.size, sha256: hash.digest('hex') }; } catch {}
     }
     let saved = {}; try { saved = JSON.parse(await fsp.readFile(path.join(this.dataDir, 'state.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') this.warning = '本地记录损坏，已使用新的会话'; }
-    this.config = { id: saved.config?.id || randomUUID(), name: saved.config?.name || os.hostname(), downloadDir: saved.config?.downloadDir || this.options.downloadDir || path.join(os.homedir(), 'Downloads', '邻讯') };
+    this.config = { id: saved.config?.id || randomUUID(), name: saved.config?.name || os.hostname(), downloadDir: saved.config?.downloadDir || this.options.downloadDir || path.join(os.homedir(), 'Downloads', '飞鼠') };
     this.messages = Array.isArray(saved.messages) ? saved.messages.slice(-2000) : [];
     for (const t of (saved.transfers || []).slice(-100)) this.transfers.set(t.id, { ...t, status: terminal.has(t.status) ? t.status : 'failed', error: terminal.has(t.status) ? t.error : '应用退出，传输已中断', controller: new AbortController() });
     this.server = http.createServer((req, res) => this.route(req, res).catch(e => respond(res, { error: e.message }, 400)));
@@ -132,7 +132,7 @@ class LanService extends EventEmitter {
     this.connecting.add(key);
     try {
       const h = await request({ address, port }, '/hello', undefined, 'GET');
-      if (h.protocol !== PROTOCOL || typeof h.id !== 'string' || typeof h.name !== 'string' || typeof h.token !== 'string') throw new Error('不是邻讯客户端');
+      if (h.protocol !== PROTOCOL || typeof h.id !== 'string' || typeof h.name !== 'string' || typeof h.token !== 'string') throw new Error('不是飞鼠客户端');
       if (h.id === this.config.id) throw new Error('这是当前终端');
       const peer = { id: h.id, name: h.name.slice(0, 40), platform: h.platform, address, port: Number(port), token: h.token, online: true, lastSeen: Date.now() };
       this.peers.set(peer.id, peer); this.changed(); return peer.id;
@@ -168,7 +168,7 @@ class LanService extends EventEmitter {
     const url = new URL(req.url, 'http://localhost');
     if (req.method === 'GET' && this.androidInstaller && ['/android', '/android.apk'].includes(url.pathname)) {
       if (url.pathname === '/android') { const html = (await fsp.readFile(path.join(__dirname, 'android-install.html'), 'utf8')).replace('__SHA256__', this.androidInstaller.sha256); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(html); }
-      else { res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Length': this.androidInstaller.size, 'Content-Disposition': 'attachment; filename="Linx-1.1.0-android.apk"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); await pipeline(fs.createReadStream(this.options.androidApkPath), res); }
+      else { res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Length': this.androidInstaller.size, 'Content-Disposition': 'attachment; filename="FlyingMouse-android.apk"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); await pipeline(fs.createReadStream(this.options.androidApkPath), res); }
       return;
     }
     if (url.pathname === '/hello' && req.method === 'GET') return respond(res, { ...this.hello(), token: this.token });
@@ -234,7 +234,7 @@ class LanService extends EventEmitter {
     } catch (e) { t.accepting = false; throw e; }
     // A fresh private directory prevents overwrites and path traversal through existing symlinks.
     try {
-      t.receiveDir = await fsp.mkdtemp(path.join(this.config.downloadDir, '邻讯-'));
+      t.receiveDir = await fsp.mkdtemp(path.join(this.config.downloadDir, '飞鼠-'));
       for (const entry of t.entries) if (entry.type === 'directory') await fsp.mkdir(path.join(t.receiveDir, ...entry.path.split('/')), { recursive: true });
       if (t.controller.signal.aborted) throw new Error('已取消');
       t.status = 'receiving'; t.updatedAt = Date.now(); this.changed();

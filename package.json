@@ -1,7 +1,7 @@
 {
   "name": "linx-lan",
-  "version": "1.1.0",
-  "description": "邻讯：局域网聊天与大文件传输",
+  "version": "1.2.0",
+  "description": "飞鼠：局域网聊天与文件传输",
   "main": "src/main.cjs",
   "private": true,
   "author": "Linx",
@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "local.linx.desktop",
-    "productName": "邻讯",
+    "productName": "飞鼠",
     "directories": {
       "output": "dist"
     },

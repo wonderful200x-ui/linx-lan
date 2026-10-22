@@ -10,6 +10,7 @@ async function hash(file){const h=createHash('sha256');for await(const b of fs.c
  const controller=http.createServer(async(req,res)=>{try{let body='';for await(const b of req)body+=b;const data=JSON.parse(body||'{}');let result={ok:true};switch(req.url){
   case '/ready':phoneId=data.id;phonePort=data.port;call('forward','tcp:'+phonePort,'tcp:'+phonePort);console.log('✓ Android 15 服务启动与端口桥接');break;
   case '/outgoing-complete':{const t=[...desktop.transfers.values()].find(t=>t.status==='completed'&&t.direction==='incoming');assert.ok(t,'电脑应已接收图片');assert.equal(await hash(path.join(t.receiveDir,'微信分享原图.jpg')),data.imageHash);assert.equal((await fsp.stat(path.join(t.receiveDir,'空文件.txt'))).size,0);console.log('✓ Android 系统分享多文件导入，原图字节不变，真实界面发送到电脑');break;}
+  case '/clipboard-complete':{const t=[...desktop.transfers.values()].find(t=>t.status==='completed'&&t.direction==='incoming'&&t.name==='电脑发来的图片.png');assert.ok(t);assert.equal(await hash(path.join(t.receiveDir,t.name)),data.imageHash);console.log('✓ Android 图片粘贴、输入法 commitContent 导入并发送到电脑，字节一致');break;}
   case '/send-to-phone':result={id:await desktop.sendFiles(phoneId,[folder])};break;
   case '/incoming-complete':assert.equal(data.imageHash,await hash(source));console.log('✓ 电脑文件夹→Android，界面接收确认、SHA-256、文件 Provider 只读');break;
   case '/background-message':await desktop.sendMessage(phoneId,'后台仍可接收消息');break;

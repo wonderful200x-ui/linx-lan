@@ -1,6 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const paths = {
+  image: 'M3 3h18v18H3zM3 17l5-5 4 4 3-3 6 6M16 7h.1', copy: 'M8 8h13v13H8zM16 8V3H3v13h5',
   phone: 'M7 2h10v20H7zM10 18h4',
   chat: 'M20 11.5a8 8 0 0 1-8 7.5H7l-4 3v-6a7 7 0 0 1-1-4.5A8 8 0 0 1 10 4h2a8 8 0 0 1 8 7.5Z M7 11h8 M7 14h5',
   transfer: 'M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4',
@@ -22,6 +23,28 @@ const platform = value => ({ darwin: 'macOS', win32: 'Windows', linux: 'Linux', 
 const statusNames = { pending: '等待接收', sending: '正在发送', receiving: '正在接收', completed: '已完成', rejected: '已拒绝', cancelled: '已取消', failed: '传输失败' };
 const active = t => ['pending', 'sending', 'receiving'].includes(t.status);
 let state, selectedId = null, view = 'chat', filter = 'all', timelineKey = '', toastTimer, dragDepth = 0, unread = new Map(), seenMessageIds = new Set(), initial = true;
+const draftsByPeer = new Map(), imagePreviews = new Map();
+let sending = false, pasting = false;
+function draftImages(id = selectedId) { return draftsByPeer.get(id) || []; }
+function renderDrafts() {
+  const drafts = draftImages();
+  $('imageDrafts').hidden = !drafts.length;
+  $('imageDrafts').innerHTML = drafts.map(d => `<div class="image-draft"><img src="${esc(d.preview)}" alt="待发送图片"><small>${bytes(d.size)}</small><button data-remove-image="${esc(d.id)}" aria-label="移除图片" ${sending ? 'disabled' : ''}>${icon('close')}</button></div>`).join('');
+}
+function updateSendButton() { $('sendMessage').disabled = sending || !currentPeer()?.online || (!$('messageInput').value.trim() && !draftImages().length); }
+async function pasteImage() {
+  const id = selectedId;
+  if (!id || !currentPeer()?.online || view !== 'chat') { toast('请先选择一个在线终端', true); return; }
+  if (pasting || sending) return;
+  pasting = true;
+  try {
+    const draft = await window.linx.clipboardImage();
+    if (!draft) { toast('剪贴板中没有图片，可以先截图或复制图片'); return; }
+    draftsByPeer.set(id, [...draftImages(id), draft]);
+    renderDrafts(); updateSendButton();
+  } catch (e) { toast(e.message, true); }
+  finally { pasting = false; }
+}
 function toast(text, error = false) { $('toast').textContent = text; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, error ? 6000 : 3500); }
 async function action(fn) { try { return await fn(); } catch (e) { toast(e.message || String(e), true); return undefined; } }
 function peers() {
@@ -41,20 +64,26 @@ function renderPeers() {
   $('peers').innerHTML = visible.length ? visible.map(p => {
     const messages = state.messages.filter(m => m.peerId === p.id), last = messages.at(-1), count = unread.get(p.id) || 0;
     return `<button class="peer ${p.id === selectedId && view === 'chat' ? 'selected' : ''}" data-peer="${esc(p.id)}" aria-label="${esc(p.name)}${p.online ? '，在线' : '，离线'}">${avatar(p.name, p.id, p.online)}<div class="peer-info"><span class="peer-name">${esc(p.name)}</span><span class="peer-sub">${esc(last?.text || (p.online ? platform(p.platform) + ' · ' + p.address : '终端已离线'))}</span></div>${count ? `<span class="unread">${count > 99 ? '99+' : count}</span>` : `<span class="peer-tail">${last ? time(last.createdAt) : ''}</span>`}</button>`;
-  }).join('') : `<div class="peer-empty">${icon('broadcast')}<p>${query ? '没有匹配的终端' : '正在发现附近的伙伴'}</p><small>${query ? '试试其他名称或 IP 地址' : '在另一台电脑打开邻讯<br>连接同一网络即可出现在这里'}</small></div>`;
+  }).join('') : `<div class="peer-empty">${icon('broadcast')}<p>${query ? '没有匹配的终端' : '正在发现终端'}</p><small>${query ? '试试其他名称或 IP 地址' : '在另一台电脑打开飞鼠<br>连接同一网络即可出现在这里'}</small></div>`;
 }
 function transferCard(t) {
   const percent = t.status === 'completed' ? 100 : t.total ? Math.min(100, Math.floor(t.bytes / t.total * 100)) : 0;
   const eta = t.speed > 0 ? Math.max(1, Math.ceil((t.total - t.bytes) / t.speed)) : 0;
   const remaining = eta ? (eta > 60 ? Math.ceil(eta / 60) + ' 分钟' : eta + ' 秒') : '';
-  return `<article class="transfer-card ${esc(t.status)}"><div class="transfer-card-top"><span class="file-icon ${t.fileCount !== 1 || !t.name.includes('.') ? 'folder' : ''}">${icon(t.fileCount !== 1 || !t.name.includes('.') ? 'folder' : 'file')}</span><div class="transfer-info"><div class="transfer-name" title="${esc(t.name)}">${esc(t.name)}</div><div class="transfer-details">${t.direction === 'incoming' ? '来自' : '发送给'} ${esc(t.peerName)} · ${bytes(t.total)} · ${t.fileCount} 个文件</div></div></div><progress max="100" value="${percent}" aria-label="${esc(t.name)} 传输进度 ${percent}%"></progress><div class="transfer-progress-meta"><strong>${statusNames[t.status] || esc(t.status)}${['sending', 'receiving'].includes(t.status) ? ' · ' + percent + '%' : ''}</strong><span>${['sending', 'receiving'].includes(t.status) ? `${bytes(t.speed)}/s${remaining ? ' · 约 ' + remaining : ''}` : time(t.createdAt)}</span></div>${t.currentFile && active(t) ? `<div class="transfer-file" title="${esc(t.currentFile)}">${esc(t.currentFile)}</div>` : ''}${t.error ? `<div class="transfer-error">${esc(t.error)}</div>` : ''}<div class="transfer-actions">${t.direction === 'incoming' && t.status === 'pending' ? `<button data-transfer="${esc(t.id)}" data-action="reject">拒绝</button><button class="accept" data-transfer="${esc(t.id)}" data-action="accept">接收文件</button>` : ''}${active(t) ? `<button data-transfer="${esc(t.id)}" data-action="cancel">取消传输</button>` : ''}${t.receiveDir ? `<button data-transfer="${esc(t.id)}" data-action="reveal">${t.status === 'completed' ? '打开文件夹' : '查看接收目录'}</button>` : ''}${t.direction === 'outgoing' && ['failed', 'cancelled', 'rejected'].includes(t.status) ? `<button data-transfer="${esc(t.id)}" data-action="retry">重新发送</button>` : ''}</div></article>`;
+  return `<article class="transfer-card ${esc(t.status)}">${imagePreviews.get(t.id) ? `<img class="sent-image" src="${esc(imagePreviews.get(t.id))}" alt="${esc(t.name)}">` : ''}<div class="transfer-card-top"><span class="file-icon ${t.fileCount !== 1 || !t.name.includes('.') ? 'folder' : ''}">${icon(t.fileCount !== 1 || !t.name.includes('.') ? 'folder' : 'file')}</span><div class="transfer-info"><div class="transfer-name" title="${esc(t.name)}">${esc(t.name)}</div><div class="transfer-details">${t.direction === 'incoming' ? '来自' : '发送给'} ${esc(t.peerName)} · ${bytes(t.total)} · ${t.fileCount} 个文件</div></div></div><progress max="100" value="${percent}" aria-label="${esc(t.name)} 传输进度 ${percent}%"></progress><div class="transfer-progress-meta"><strong>${statusNames[t.status] || esc(t.status)}${['sending', 'receiving'].includes(t.status) ? ' · ' + percent + '%' : ''}</strong><span>${['sending', 'receiving'].includes(t.status) ? `${bytes(t.speed)}/s${remaining ? ' · 约 ' + remaining : ''}` : time(t.createdAt)}</span></div>${t.currentFile && active(t) ? `<div class="transfer-file" title="${esc(t.currentFile)}">${esc(t.currentFile)}</div>` : ''}${t.error ? `<div class="transfer-error">${esc(t.error)}</div>` : ''}<div class="transfer-actions">${t.direction === 'incoming' && t.status === 'pending' ? `<button data-transfer="${esc(t.id)}" data-action="reject">拒绝</button><button class="accept" data-transfer="${esc(t.id)}" data-action="accept">接收文件</button>` : ''}${active(t) ? `<button data-transfer="${esc(t.id)}" data-action="cancel">取消传输</button>` : ''}${t.receiveDir ? `<button data-transfer="${esc(t.id)}" data-action="reveal">${t.status === 'completed' ? '打开文件夹' : '查看接收目录'}</button>` : ''}${t.direction === 'outgoing' && ['failed', 'cancelled', 'rejected'].includes(t.status) ? `<button data-transfer="${esc(t.id)}" data-action="retry">重新发送</button>` : ''}</div></article>`;
 }
 function renderActivity() {
-  const list = state.transfers.filter(active);
-  $('activeCount').textContent = list.length;
-  $('transferBadge').hidden = !list.length; $('transferBadge').textContent = list.length;
-  const shown = [...list, ...state.transfers.filter(t => !active(t)).slice(0, 3)];
-  $('activeTransfers').innerHTML = shown.length ? shown.map(transferCard).join('') : `<div class="activity-empty"><span class="empty-icon">${icon('transfer')}</span><strong>还没有正在传输的文件</strong><p>选择一位伙伴开始分享<br>传输进度会在这里实时显示</p></div>`;
+  const count = state.transfers.filter(active).length;
+  $('transferBadge').hidden = !count; $('transferBadge').textContent = count;
+}
+async function loadImagePreviews(list) {
+  for (const t of list) {
+    if (t.kind !== 'transfer' || t.status !== 'completed' || !/\.(png|jpe?g|webp|gif)$/i.test(t.name) || imagePreviews.has(t.id)) continue;
+    if (imagePreviews.size > 200) break;
+    imagePreviews.set(t.id, null);
+    const preview = await window.linx.transferImage(t.id).catch(() => null);
+    if (preview) { imagePreviews.set(t.id, preview); timelineKey = ''; render(); }
+  }
 }
 function renderTimeline(p) {
   const list = [...state.messages.filter(m => m.peerId === p.id).map(m => ({ ...m, kind: 'message' })), ...state.transfers.filter(t => t.peerId === p.id).map(t => ({ ...t, kind: 'transfer' }))].sort((a, b) => a.createdAt - b.createdAt);
@@ -62,7 +91,7 @@ function renderTimeline(p) {
   if (key === timelineKey) return;
   const el = $('timeline'), atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90 || !timelineKey.startsWith(p.id);
   timelineKey = key;
-  if (!list.length) el.innerHTML = `<div class="chat-intro">${avatar(p.name, p.id)}<strong>和 ${esc(p.name)} 开始协作</strong><p>发一条消息，或拖入文件与文件夹。<br>文件通过局域网直接传给对方。</p></div>`;
+  if (!list.length) el.innerHTML = `<div class="chat-intro">${avatar(p.name, p.id)}<strong>和 ${esc(p.name)} 聊天</strong><p>发送消息、粘贴图片，或拖入文件。<br>文件通过局域网直接传给对方。</p></div>`;
   else {
     let day = '';
     el.innerHTML = list.map(item => {
@@ -72,6 +101,7 @@ function renderTimeline(p) {
     }).join('');
   }
   if (atBottom) el.scrollTop = el.scrollHeight;
+  loadImagePreviews(list);
 }
 function renderHistory() {
   const completed = state.transfers.filter(t => t.status === 'completed');
@@ -89,12 +119,12 @@ function render() {
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
   const p = currentPeer(), chatting = view === 'chat' && p;
   $('welcome').hidden = view !== 'chat' || !!p; $('chat').hidden = !chatting; $('transferView').hidden = view !== 'transfers';
-  if (view === 'transfers') { $('workspaceTitle').innerHTML = '<h2>分享的每一步，都有记录</h2><p>消息之外，让文件在伙伴之间流动</p>'; renderHistory(); }
+  if (view === 'transfers') { $('workspaceTitle').innerHTML = '<h2>文件</h2><p>传输记录</p>'; renderHistory(); }
   else if (p) {
     $('workspaceTitle').innerHTML = `<h2>${esc(p.name)}</h2><p>${p.online ? `${platform(p.platform)} · ${esc(p.address)}:${p.port}` : '终端已离线 · 对方上线后可继续发送'}</p>`;
-    $('sendMessage').disabled = !p.online || !$('messageInput').value.trim(); $('sendFile').disabled = !p.online; $('sendFolder').disabled = !p.online; $('messageInput').disabled = !p.online;
+    updateSendButton(); renderDrafts(); $('pasteImage').disabled = !p.online || sending; $('sendFile').disabled = !p.online; $('sendFolder').disabled = !p.online; $('messageInput').disabled = !p.online;
     renderTimeline(p);
-  } else $('workspaceTitle').innerHTML = '<h2>连接，就在身边</h2><p>让消息与文件在局域网里自由流动</p>';
+  } else $('workspaceTitle').innerHTML = '<h2>飞鼠</h2><p>局域网聊天与文件传输</p>';
   const totalUnread = [...unread.values()].reduce((a, b) => a + b, 0); $('unreadBadge').hidden = !totalUnread; $('unreadBadge').textContent = totalUnread > 99 ? '99+' : totalUnread;
 }
 function applyState(value) {
@@ -118,13 +148,40 @@ $('connectForm').addEventListener('submit', event => {
 $('rescanButton').addEventListener('click', () => action(async () => { await window.linx.rescan(); toast('正在重新发现局域网终端…'); }));
 $('copyAddress').addEventListener('click', () => action(async () => { await navigator.clipboard.writeText((state.addresses[0] || '127.0.0.1') + ':' + state.port); toast('连接地址已复制'); }));
 async function sendMessage() {
-  const text = $('messageInput').value.trim(), id = selectedId; if (!id || !text) return;
-  $('sendMessage').disabled = true;
-  await action(async () => { await window.linx.message(id, text); if (selectedId === id && $('messageInput').value.trim() === text) $('messageInput').value = ''; applyState(await window.linx.snapshot()); });
-  render(); $('messageInput').focus();
+  const text = $('messageInput').value.trim(), id = selectedId, drafts = [...draftImages()];
+  if (sending || !id || !currentPeer()?.online || (!text && !drafts.length)) return;
+  sending = true; updateSendButton(); renderDrafts();
+  await action(async () => {
+    if (text) {
+      await window.linx.message(id, text);
+      if (selectedId === id && $('messageInput').value.trim() === text) $('messageInput').value = '';
+    }
+    if (drafts.length) {
+      await window.linx.sendImages(id, drafts.map(d => d.id));
+      const sent = new Set(drafts.map(d => d.id));
+      draftsByPeer.set(id, draftImages(id).filter(d => !sent.has(d.id)));
+      toast('图片已发送，等待对方接收');
+    }
+    applyState(await window.linx.snapshot());
+  });
+  sending = false; render(); $('messageInput').focus();
 }
 $('sendMessage').addEventListener('click', sendMessage);
-$('messageInput').addEventListener('input', () => { $('sendMessage').disabled = !currentPeer()?.online || !$('messageInput').value.trim(); });
+$('pasteImage').addEventListener('click', pasteImage);
+$('messageInput').addEventListener('input', updateSendButton);
+$('messageInput').addEventListener('paste', event => {
+  if ([...event.clipboardData.items].some(item => item.type.startsWith('image/'))) {
+    event.preventDefault(); pasteImage();
+  } else {
+    const files = [...event.clipboardData.files].map(file => window.linx.filePath(file)).filter(Boolean);
+    if (files.length && currentPeer()?.online) { event.preventDefault(); action(async () => { await window.linx.dropSend(selectedId, files); toast('已发送文件请求，等待对方接收'); }); }
+  }
+});
+$('imageDrafts').addEventListener('click', event => {
+  const button = event.target.closest('[data-remove-image]'); if (!button || sending) return;
+  const owner = selectedId, id = button.dataset.removeImage;
+  action(async () => { await window.linx.discardImage(id); draftsByPeer.set(owner, draftImages(owner).filter(d => d.id !== id)); renderDrafts(); updateSendButton(); });
+});
 $('messageInput').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (!$('sendMessage').disabled) sendMessage(); } });
 for (const [id, folder] of [['sendFile', false], ['sendFolder', true]]) $(id).addEventListener('click', () => action(async () => {
   $(id).disabled = true; try { const sent = await window.linx.pickSend(selectedId, folder); if (sent) toast('已发送请求，等待对方接收'); } finally { $(id).disabled = !currentPeer()?.online; }

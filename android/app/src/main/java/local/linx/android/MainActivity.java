@@ -9,6 +9,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.view.*;
+import android.view.inputmethod.*;
 import android.widget.*;
 import java.io.*;
 import java.util.*;
@@ -16,7 +17,7 @@ import local.linx.android.core.LanEngine;
 import org.json.*;
 
 public final class MainActivity extends Activity {
-  private static final int BLUE = 0xff3370ff, INK = 0xff24324a, MUTED = 0xff78879e, BG = 0xfff5f7fb;
+  private static final int BLUE = 0xff0099e6, INK = 0xff25282d, MUTED = 0xff7c818a, BG = 0xfff5f5f5;
   private static final int PICK = 11, TREE = 12, SAVE = 13;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private LinearLayout body, root, nav, composer;
@@ -104,7 +105,7 @@ public final class MainActivity extends Activity {
     root.setPadding(dp(20), dp(12), dp(20), 0);
     setContentView(root);
     LinearLayout header = row();
-    TextView brand = text("邻讯.", 30, INK, true);
+    TextView brand = text("飞鼠", 22, INK, true);
     header.addView(brand, new LinearLayout.LayoutParams(0, dp(56), 1));
     header.addView(button("手动连接", false, this::connectDialog));
     header.addView(button("设置", false, this::settings));
@@ -122,12 +123,48 @@ public final class MainActivity extends Activity {
     root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     composer = row();
     composer.setPadding(0, dp(8), 0, dp(8));
-    message = new EditText(this);
+    message = new EditText(this) {
+      @Override
+      public InputConnection onCreateInputConnection(EditorInfo info) {
+        InputConnection original = super.onCreateInputConnection(info);
+        if (original == null) return null;
+        info.contentMimeTypes = new String[] {"image/*"};
+        return new InputConnectionWrapper(original, false) {
+          @Override
+          public boolean commitContent(InputContentInfo content, int flags, Bundle opts) {
+            if (content == null || !content.getDescription().hasMimeType("image/*")) return false;
+            try {
+              if ((flags & InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION) != 0) content.requestPermission();
+              ArrayList<Uri> uris = new ArrayList<>(); uris.add(content.getContentUri());
+              forwardImport(uris, false, null, content);
+              showImageQueue();
+              return true;
+            } catch (Exception e) { content.releasePermission(); toast("不能读取输入法图片：" + e.getMessage()); return false; }
+          }
+        };
+      }
+      @Override
+      public boolean onTextContextMenuItem(int id) {
+        if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
+          ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+          ClipData clips = clipboard.getPrimaryClip();
+          if (clips != null && clipboard.getPrimaryClipDescription() != null
+              && clipboard.getPrimaryClipDescription().hasMimeType("image/*")) {
+            ArrayList<Uri> uris = new ArrayList<>();
+            for (int i = 0; i < clips.getItemCount(); i++) {
+              Uri uri = clips.getItemAt(i).getUri(); if (uri != null) uris.add(uri);
+            }
+            if (!uris.isEmpty()) { forwardImport(uris, false, null); showImageQueue(); return true; }
+          }
+        }
+        return super.onTextContextMenuItem(id);
+      }
+    };
     message.setTextSize(14);
     message.setSingleLine(false);
     message.setMaxLines(3);
     message.setHint("输入消息…");
-    message.setBackground(shape(Color.WHITE, 12));
+    message.setBackground(shape(Color.WHITE, 4));
     message.setPadding(dp(12), dp(10), dp(12), dp(10));
     composer.addView(message, new LinearLayout.LayoutParams(0, -2, 1));
     composer.addView(
@@ -237,10 +274,10 @@ public final class MainActivity extends Activity {
     body.addView(heading);
     JSONArray peers = state.optJSONArray("peers");
     if (peers == null || peers.length() == 0) {
-      LinearLayout empty = card(0xffeaf1ff);
-      empty.addView(text("连接，就在身边", 22, INK, true));
+      LinearLayout empty = card(0xffeeeeee);
+      empty.addView(text("还没有发现终端", 16, INK, true));
       space(empty, 8);
-      empty.addView(text("手机和电脑连接同一 Wi-Fi，并打开邻讯。\n也可以点右上角输入电脑首页的 IP 和端口。", 13, MUTED, false));
+      empty.addView(text("手机和电脑连接同一 Wi-Fi，并打开飞鼠。\n也可以点右上角输入电脑首页的 IP 和端口。", 13, MUTED, false));
       body.addView(empty);
     } else
       for (int i = 0; i < peers.length(); i++) {
@@ -248,7 +285,7 @@ public final class MainActivity extends Activity {
         if (p == null) continue;
         String id = p.optString("id");
         boolean online = p.optBoolean("online");
-        LinearLayout cell = card(id.equals(selected) ? 0xffe8efff : Color.WHITE);
+        LinearLayout cell = card(id.equals(selected) ? 0xffdfe7eb : Color.WHITE);
         LinearLayout row = row();
         TextView avatar =
             text(
@@ -258,7 +295,7 @@ public final class MainActivity extends Activity {
                 BLUE,
                 true);
         avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(shape(0xffdce8ff, 12));
+        avatar.setBackground(shape(0xffdceaf1, 5));
         row.addView(avatar, new LinearLayout.LayoutParams(dp(43), dp(43)));
         LinearLayout info = column();
         info.setPadding(dp(12), 0, 0, 0);
@@ -289,9 +326,9 @@ public final class MainActivity extends Activity {
   private void renderQueue(TransferService s) {
     space(body, 12);
     LinearLayout card = card(Color.WHITE);
-    card.addView(text("把微信里的文件，交给电脑", 18, INK, true));
+    card.addView(text("发送文件", 16, INK, true));
     space(card, 6);
-    card.addView(text("微信「分享/用其他应用打开」→ 邻讯；\n没有分享入口时，先保存图片，再从这里选择。", 12, MUTED, false));
+    card.addView(text("微信「分享/用其他应用打开」→ 飞鼠；\n没有分享入口时，先保存图片，再从这里选择。", 12, MUTED, false));
     space(card, 14);
     LinearLayout buttons = row();
     buttons.addView(
@@ -369,7 +406,7 @@ public final class MainActivity extends Activity {
               }));
     }
     body.addView(card);
-    LinearLayout tip = card(0xffedf5f2);
+    LinearLayout tip = card(0xffeeeeee);
     tip.addView(text("只在可信局域网使用", 12, 0xff538875, true));
     tip.addView(text("文件直接传输，不经过云端；当前协议为明文。传输时保留通知，可切回微信。", 11, 0xff7f9b90, false));
     body.addView(tip);
@@ -483,9 +520,9 @@ public final class MainActivity extends Activity {
   }
 
   private void renderFiles(TransferService s) {
-    body.addView(text("已接收的文件", 22, INK, true));
+    body.addView(text("已接收的文件", 18, INK, true));
     space(body, 6);
-    body.addView(text("文件保存在邻讯应用内。可打开、分享，或另存到手机公共目录；卸载应用会删除未导出的文件。", 12, MUTED, false));
+    body.addView(text("文件保存在飞鼠应用内。可打开、分享，或另存到手机公共目录；卸载应用会删除未导出的文件。", 12, MUTED, false));
     space(body, 14);
     List<File> files = s.engine.allReceivedFiles();
     files.sort((a, b) -> Long.compare(b.lastModified(), a.lastModified()));
@@ -587,7 +624,16 @@ public final class MainActivity extends Activity {
     renderNav();
   }
 
+  private void showImageQueue() {
+    tab = "传输"; revision = -1; renderNav(); render();
+    toast("图片已加入待发送列表，请确认后发送");
+  }
+
   private void forwardImport(ArrayList<Uri> uris, boolean tree, String text) {
+    forwardImport(uris, tree, text, null);
+  }
+
+  private void forwardImport(ArrayList<Uri> uris, boolean tree, String text, InputContentInfo content) {
     Intent service =
         new Intent(this, TransferService.class)
             .setAction(TransferService.IMPORT)
@@ -595,14 +641,16 @@ public final class MainActivity extends Activity {
             .putExtra("tree", tree)
             .putExtra("text", text)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    if (content != null) service.putExtra("inputContent", content);
     if (!uris.isEmpty()) {
-      ClipData clips = ClipData.newRawUri("邻讯共享文件", uris.get(0));
+      ClipData clips = ClipData.newRawUri("飞鼠共享文件", uris.get(0));
       for (int i = 1; i < uris.size(); i++) clips.addItem(new ClipData.Item(uris.get(i)));
       service.setClipData(clips);
     }
     try {
       startForegroundService(service);
     } catch (Exception e) {
+      if (content != null) content.releasePermission();
       toast("不能导入文件：" + e.getMessage());
     }
   }
@@ -695,7 +743,7 @@ public final class MainActivity extends Activity {
           text(
               "传输需要保持局域网服务运行。可切回微信，后台通知中可停止服务。部分手机需允许后台运行。\n\n"
                   + "Android 15+ 对数据同步前台服务有后台时限；服务停止后重新打开应用即可。\n\n"
-                  + "版本 1.1.0 · 仅用于可信局域网",
+                  + "版本 1.2.0 · 仅用于可信局域网",
               12,
               MUTED,
               false);
@@ -780,7 +828,7 @@ public final class MainActivity extends Activity {
   private LinearLayout card(int color) {
     LinearLayout v = column();
     v.setPadding(dp(16), dp(14), dp(16), dp(14));
-    v.setBackground(shape(color, 16));
+    v.setBackground(shape(color, 5));
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
     p.setMargins(0, dp(8), 0, dp(4));
     v.setLayoutParams(p);
@@ -798,7 +846,7 @@ public final class MainActivity extends Activity {
     v.setMinWidth(0);
     v.setMinimumWidth(0);
     v.setPadding(dp(12), dp(8), dp(12), dp(8));
-    v.setBackground(shape(primary ? BLUE : 0x003370ff, 10));
+    v.setBackground(shape(primary ? BLUE : 0x000099e6, 4));
     v.setOnClickListener(w -> action.run());
     return v;
   }

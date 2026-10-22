@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'local.linx.android'
     compileSdk 35
-    defaultConfig { applicationId 'local.linx.android'; minSdk 26; targetSdk 35; versionCode 1; versionName '1.1.0'; testInstrumentationRunner 'local.linx.android.SmokeInstrumentation' }
+    defaultConfig { applicationId 'local.linx.android'; minSdk 26; targetSdk 35; versionCode 2; versionName '1.2.0'; testInstrumentationRunner 'local.linx.android.SmokeInstrumentation' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     buildTypes { release { minifyEnabled false } }
 }

@@ -26,7 +26,7 @@ jobs:
         with:
           name: linx-android
           path: assets
-      - run: mv assets/Linx-1.1.0-android.apk assets/Linx-android.apk
+      - run: mv assets/FlyingMouse-*-android.apk assets/Linx-android.apk
         shell: bash
       - run: npm run check
       - run: npm test
